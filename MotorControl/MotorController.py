@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 ############## Motor Controller Module ###############
 
 # Import necessary packages
@@ -7,7 +8,7 @@ import MotorControl
 transportMotor = '00275197'
 feederMotor = '00275128'
 feederMotorVelocity = 350000000
-transportMotorVelocity = 250000000
+transportMotorVelocity = 350000000
 
 def startMotors(): 
     MotorControl.energize(transportMotor)

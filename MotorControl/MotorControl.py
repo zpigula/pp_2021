@@ -11,6 +11,7 @@
 import subprocess
 import yaml
  
+
 def ticcmd(*args):
   return subprocess.check_output(['ticcmd'] + list(args))
 
@@ -42,4 +43,24 @@ def energize(motorId):
 
 def deEnergize(motorId): 
   ticcmd('-d', str(motorId), '--deenergize')
+
+class MotorConroller(object):
+
+  transportMotor = '00275197'
+  feederMotor = '00275128'
+  feederMotorVelocity = 350000000
+  transportMotorVelocity = 350000000
+
+  def startMotors(self): 
+      energize(self.transportMotor)
+      energize(self.feederMotor)
+
+      targetVelocity(self.transportMotor, self.transportMotorVelocity)
+      targetVelocity(self.feederMotor, self.feederMotorVelocity)
+
+  def stopMotors(self): 
+      stop(self.transportMotor)
+      stop(self.feederMotor)
+      deEnergize(self.transportMotor)
+      deEnergize(self.feederMotor)
 
