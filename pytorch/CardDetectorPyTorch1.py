@@ -2,10 +2,15 @@
 
 print("\nStarting PLaying Card Detector ...")
 print("Loading system libs ...")
+
 import cv2
 import numpy
 import torch
 import torchvision
+
+# import tensor board
+#from torch.utils.tensorboard import SummaryWriter
+
 #import threading
 import time
 from utils import preprocess
@@ -22,6 +27,7 @@ import sys
 
 from pbn_file import PBN
 
+
 print("Initializing diverter and motor controllers ...")
 # Load diverter control
 from dualmax import Motors
@@ -37,6 +43,19 @@ import selectors
 import socket
 import os
 import fcntl
+
+import matplotlib.pyplot as plt
+
+# import tensor board
+from torch.utils.tensorboard import SummaryWriter
+#from torchsummary import summary
+
+# from torch.autograd import Variable
+# from torchvision.models.vgg import model_urls
+# from torchviz import make_dot
+
+def my_plot(epochs, loss):
+    plt.plot(epochs, loss)
 
 # set sys.stdin non-blocking
 def set_input_nonblocking():
@@ -119,50 +138,163 @@ def init_session_data():
     m_card_prediction = 'NONE'
     m_prediction = ['NONE','NONE','NONE']
     
-
+# helper function to show an image
+# (used in the `plot_classes_preds` function below)
+def matplotlib_imshow(img, one_channel=False):
+    if one_channel:
+        img = img.mean(dim=0)
+    img = img / 2 + 0.5     # unnormalize
+    npimg = img.numpy()
+    if one_channel:
+        plt.imshow(npimg, cmap="Greys")
+    else:
+        plt.imshow(np.transpose(npimg, (1, 2, 0)))
 
 ############################################################################################
 #           Load optimizer and run evaluation
 ############################################################################################
-def evaluate(nn_model, val_data):
-    BATCH_SIZE = 8
-    optimizer = torch.optim.Adam(nn_model.parameters())
+def evaluate(nn_model, val_data, is_training, num_epochs):
+    # To do hyperparameter search, include more batch_sizes you want to try
+    # and more learning rates!
+    # batch_sizes = [8, 64]
+    # learning_rates = [0.01, 0.001]
+    batch_sizes = [8, 64]
+    learning_rates = [0.01, 0.005, 0.001]
+    best_accuracy = 0.95
+    best_loss = 0.09
 
-    #try:
-    train_loader = torch.utils.data.DataLoader(
-        val_data,
-        batch_size=BATCH_SIZE,
-        shuffle=True
-    )
+    print(nn_model)
 
-    time.sleep(1)
+    for batch_size in batch_sizes:
+        for learning_rate in learning_rates:
 
-    i = 0
-    sum_loss = 0.0
-    error_count = 0.0
-    for images, labels in iter(train_loader):
-        # send data to device
-        images = images.to(device)
-        labels = labels.to(device)
+            optimizer = torch.optim.Adam(nn_model.parameters(),lr=learning_rate)
 
-        # execute model to get outputs
-        outputs = nn_model(images)
+            # default `log_dir` is "runs" - we'll be more specific here
+            #writer = SummaryWriter('runs/card_detector3')
+            writer = SummaryWriter(f"runs/card_detector5/BatchSize {batch_size} LR {learning_rate}")
 
-        # compute loss
-        loss = F.cross_entropy(outputs, labels)
+            #writer.add_graph(nn_model.encoder, images)
+            #summary(nn_model,input_size=)
 
-        # update error count and progress
-        error_count += len(torch.nonzero(outputs.argmax(1) - labels, as_tuple=False).flatten())
-        count = len(labels.flatten())
-        i += count
-        sum_loss += float(loss)
-        progress = i / len(val_data)
-        loss = sum_loss / i
-        accuracy = 1.0 - error_count / i
+            #try:
+            train_loader = torch.utils.data.DataLoader(
+                val_data,
+                batch_size=batch_size,
+                shuffle=True
+            )
+            
+            # Initialize network
 
-        print("{:.0%} Loss={:.6e} Accuracy={:.6e}".format(progress, loss, accuracy))
-    
-    print("Num Images={:d} Error Cnt={:e}".format(i, error_count))
+            # Execute the following to define the neural network
+            # and adjust the fully connected layer (fc) 
+            # to match the outputs required for the project. 
+            nn_model = torchvision.models.resnet18(pretrained=True)
+            nn_model.fc = torch.nn.Linear(512, len(dataset.categories))          
+            nn_model = nn_model.to(device)
+            
+            # uncomment in normal run to load previously saved state from file
+            nn_model.load_state_dict(torch.load(DATA_DIR + 'my_card_model_v1.pth'))
+
+            time.sleep(1)
+            epoch = num_epochs
+            step = 0
+
+            # Visualize model in TensorBoard
+            images, _ = next(iter(train_loader))
+            writer.add_graph(nn_model, images.to(device))
+            #writer.close()
+
+            while epoch > 0:
+
+                i = 0
+                epoch = epoch - 1
+                sum_loss = 0.0
+                error_count = 0.0
+                
+                losses = []
+                accuracies = []
+
+                for images, labels in iter(train_loader):
+                    # send data to device
+                    images = images.to(device)
+                    labels = labels.to(device)
+
+                    if is_training:
+                        # zero gradients of parameters
+                        optimizer.zero_grad()
+
+                    # execute model to get outputs
+                    outputs = nn_model(images)
+
+                    # compute loss
+                    loss = F.cross_entropy(outputs, labels)           
+                    losses.append(loss.item())
+
+                    if is_training:
+                        # run backpropogation to accumulate gradients
+                        loss.backward()
+
+                        # step optimizer to adjust parameters
+                        optimizer.step()
+
+                    # Calculate 'running' training accuracy
+                    features = images.reshape(images.shape[0], -1)
+                    img_grid = torchvision.utils.make_grid(images)
+                    _, predictions = outputs.max(1)
+                    num_correct = (predictions == labels).sum()
+                    running_train_acc = float(num_correct) / float(images.shape[0])
+                    
+                    # update error count and progress
+                    error_count += len(torch.nonzero(outputs.argmax(1) - labels, as_tuple=False).flatten())
+                    count = len(labels.flatten())
+                    i += count
+                    sum_loss += float(loss)
+                    progress = i / len(val_data)
+                    loss = sum_loss / i
+                    accuracy = 1.0 - error_count / i
+                    accuracies.append(accuracy)
+
+                    # Plot loss, accuracy & images to tensorboard
+                    class_labels = [CATEGORIES[label] for label in predictions]
+                    #writer.add_image("Card Images", img_grid)            
+                    writer.add_histogram("FC layer distribution of weights ", nn_model.fc.weight, global_step=step)
+                    writer.add_scalar("Training loss", loss, global_step=step)
+                    writer.add_scalar("Training Accuracy", accuracy, global_step=step)
+                    
+
+                    if step == 100:
+                         writer.add_embedding(features, metadata=class_labels, label_img=images)
+
+                    step += 1
+
+                    print("{:.0%} Loss={:.6e} Accuracy={:.6e}".format(progress, loss, accuracy))
+
+                #writer.add_embedding(features,metadata=class_labels,label_img=images,global_step=step,)
+                ep_accuracy = sum(accuracies) / len(accuracies)
+                ep_loss = sum(losses) / len(losses)
+                print(f"\nepoch={epoch} bsize={batch_size} lr={learning_rate} accuracy={ep_accuracy} loss={ep_loss}")
+                writer.add_hparams
+                (
+                    {"lr": learning_rate, "bsize": batch_size},
+                    {"accuracy": ep_accuracy, "loss": ep_loss,},
+                )
+
+                print("Num Images={:d} Error Cnt={:e}\n".format(i, error_count))
+                
+                # remember best accuracy and save model
+                is_best = (ep_accuracy > best_accuracy) or (ep_accuracy >= best_accuracy and ep_loss < best_loss)              
+                if is_best:
+                    best_accuracy = ep_accuracy
+                    if ep_loss < best_loss:
+                        best_loss = ep_loss
+                    print(f"Is Best accuracy={best_accuracy} loss={best_loss}, saving model .. \n")
+                    torch.save(nn_model.state_dict(), f"runs/card_detector4/epoch_{epoch}_BatchSize_{batch_size}_LR_{learning_rate}")
+
+                # end of while epoch
+
+    writer.flush()
+    writer.close()
 
 print("Initializing socket server ...")
 m_selector = selectors.DefaultSelector()
@@ -190,6 +322,7 @@ parser.add_argument("--width", type=int, default=224, help="desired width of cam
 parser.add_argument("--height", type=int, default=224, help="desired height of camera stream (default is 720 pixels)")
 parser.add_argument('--headless', action='store_true', default=(), help="run without display")
 parser.add_argument('--run_val', default=False, action="store_true", help="run validation")
+parser.add_argument('--train', default=True, action="store_true", help="train model")
 parser.add_argument('--gen_val_data', default=False, action="store_true", help="generate validation dataset")
 
 
@@ -226,7 +359,7 @@ CATEGORIES = [ '2C','3C','4C','5C','6C','7C','8C','9C','10C','JC','QC','KC','AC'
                '2D','3D','4D','5D','6D','7D','8D','9D','10D','JD','QD','KD','AD','NONE']
 
 
-DATASETS = ['A', 'B', 'C','V']
+DATASETS = ['A', 'B', 'C', 'T', 'V']
   
 TRANSFORMS = transforms.Compose([
     transforms.ColorJitter(0.2, 0.2, 0.2, 0.2),
@@ -256,7 +389,11 @@ setPBN(opt.pbn_file)
 dataset = datasets[DATASETS[0]] 
 
 # initialize val dataset
-val_dataset = datasets[DATASETS[3]] 
+val_dataset = datasets[DATASETS[4]] 
+
+# initialize training dataset
+if opt.train:  
+    train_dataset = datasets[DATASETS[3]]
 
 # initialize collect dataset
 collect_dataset = datasets[DATASETS[2]]
@@ -281,20 +418,28 @@ device = torch.device('cuda')
 m_model = torchvision.models.resnet18(pretrained=True)
 m_model.fc = torch.nn.Linear(512, len(dataset.categories))
 
+
+
 # RESNET 34
 # model = torchvision.models.resnet34(pretrained=True)
 # model.fc = torch.nn.Linear(512, len(dataset.categories))
     
 m_model = m_model.to(device)
 #m_model.load_state_dict(torch.load(DATA_DIR + 'my_card_model_v1.pth'))
-m_model.load_state_dict(torch.load(DATA_DIR + 'epoch_2_BatchSize_64_LR_0_001.pth'))
+
+#make_dot(m_model)
+
+if opt.train:  
+    m_model = m_model.train()      
+    evaluate(m_model, train_dataset, True, 5)
 
 # Set model to evaluation mode
 m_model = m_model.eval()
 
 # Validate against validation dataset
-if opt.run_val:        
-    evaluate(m_model, val_dataset)
+if opt.run_val:       
+    evaluate(m_model, val_dataset, False, 1)
+
 
 # Initialize global data
 init_session_data()
@@ -319,7 +464,7 @@ freq = cv2.getTickFrequency()
 cnt = 0
 
 # process frames until the user exits
-process_frames = True
+process_frames = False
 while process_frames:
     
     # Start timer (for calculating frame rate)
@@ -350,8 +495,7 @@ while process_frames:
                 if m_prediction[0] == m_prediction[1] == m_prediction[2] and m_card_deck[m_card_prediction] == 0:
                     m_card_cnt = m_card_cnt + 1
                     if m_card_prediction != 'NONE':
-                        #print("{:d} {:05.2f}% {:s}".format(m_card_cnt, confidence * 100, m_card_prediction)) 
-                        print("{:05.2f}% {:s}".format(confidence * 100, m_card_prediction))
+                        print("{:d} {:05.2f}% {:s}".format(m_card_cnt, confidence * 100, m_card_prediction)) 
                     m_card_deck[m_card_prediction] += 1
                     if m_card_prediction in player_S_cards:
                         m_diverters.DivertTo()

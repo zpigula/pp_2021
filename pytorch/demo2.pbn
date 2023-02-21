@@ -1,0 +1,30 @@
+[Event "Warsaw Open"]
+[Site ""]
+[Date ""]
+[Board ""]
+[West ""]
+[North ""]
+[East ""]
+[South ""]
+[Dealer "E"]
+[Vulnerable "NS"]
+[Deal "E:T96.A62.J975.985 KQ832.954.T.Q732 AJ754.T8.K842.K4 .KQJ73.AQ63.AJT6"]
+[Scoring "620"]
+[Declarer "S"]
+[Contract "5C"]
+[Result "12"]
+[Auction "E"]
+Pass Pass 1S X
+2S Pass Pass X
+Pass 3C Pass 4C
+Pass 5C Pass Pass
+Pass
+[Play "W"]
+HT HK HA H4
+SA C6 ST SK
+H8 H3 H2 H9
+DK DA D7 DT
+D2 D3 D9 C2
+C4 CT C5 C3
+D4 D6 D5 CQ
+CK CA C8 C7

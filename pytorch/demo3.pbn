@@ -1,0 +1,34 @@
+[Event "PKB Wood Dale"]
+[Site ""]
+[Date ""]
+[Board ""]
+[West ""]
+[North ""]
+[East ""]
+[South ""]
+[Dealer "E"]
+[Vulnerable "NS"]
+[Deal "E:KQ972.65.J9.A985 AT43.JT2.73.JT42 J86.K9843.T862.3 5.AQ7.AKQ54.KQ76"]
+[Scoring "630"]
+[Declarer "S"]
+[Contract "3NT"]
+[Result "10"]
+[Auction "E"]
+Pass Pass Pass 1D
+1S 1NT Pass 3NT
+Pass Pass Pass
+[Play "W"]
+S6 S5 SQ SA
+C3 CK CA C2
+SJ C7 SK S4
+S8 H7 S2 ST
+D6 DA D9 D7
+D2 DK DJ D3
+DT DQ C5 H2
+H3 CQ C8 C4
+H4 C6 C9 CJ
+H9 D4 S9 CT
+D8 D5 S7 S3
+HK HA H6 HT
+H8 HQ H5 HJ
+
