@@ -1,4 +1,9 @@
-The idea of this project is to develop playing card recognition Machine Learning (ML) model / system that can identify any of the cards in a standard 52 card deck.
+# 2021 Personal Project 
+## Playing Cards Recognition using Machine Learning (ML)
+Project Goals: 
+- Develop Machine Learning (ML) model that can identify any of the cards in a standard 52 card deck
+- Test model on real-time system
+
 
 Playing Card Recognition Test Run
 
